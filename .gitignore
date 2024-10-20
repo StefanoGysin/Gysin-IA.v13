@@ -18,6 +18,8 @@ venv/
 
 # Environment variables
 .env
-convessor.py
 projeto_combinado.txt
 projeto-Gysin.txt
+credencial.json
+conteudo_unificado.txt
+juntar-de-Projeto.py
