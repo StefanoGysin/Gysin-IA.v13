@@ -11,16 +11,18 @@ Data: 20/10/2024 15:12 (horário de Zurique)
 
 # Importações necessárias de bibliotecas PySide6 e módulos personalizados
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QLineEdit, QApplication, QLabel, QCheckBox
+    QMainWindow, QWidget, QVBoxLayout, QPushButton, QTextEdit, QLineEdit, QApplication, QLabel, QCheckBox
 )
 from PySide6.QtCore import Qt, Slot, QTimer
 from PySide6.QtGui import QFont, QIcon, QTextCursor
 from api.openai_client import OpenAIClient
 from dotenv import load_dotenv
 from googlecloud.text_to_speech import text_to_speech
+from utils.audio_utils import record_audio
+from googlecloud.speech_to_text import transcribe_audio
+from gui.language_utils import detect_language 
 import vlc
 import os
-from gui.language_utils import detect_language
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -41,16 +43,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Gysin IA")
         self.setMinimumSize(1080, 720)
-
-        # Configuração da interface do usuário
         self.setup_ui()
-
-        # Inicializa o cliente OpenAI
         self.openai_client = OpenAIClient()
-
-        # Adiciona mensagem de boas-vindas
         self.add_message("Sistema", "Bem-vindo ao Gysin IA! Como posso ajudar você hoje?", self.BACKGROUND_SYSTEM)
-        
+
     def setup_ui(self):
         """Configura a interface do usuário."""
         central_widget = QWidget()
@@ -73,26 +69,45 @@ class MainWindow(QMainWindow):
         self.audio_response_checkbox = QCheckBox("Habilitar respostas por áudio")
         main_layout.addWidget(self.audio_response_checkbox)
 
-        # Layout para entrada de texto e botão de envio
-        input_layout = QHBoxLayout()
+        # Layout para entrada de texto e botões
+        input_layout = QVBoxLayout()
 
+        # Campo de entrada de texto do usuário
         self.user_input = QLineEdit()
         self.user_input.setFont(QFont("Arial", self.FONT_SIZE))
         self.user_input.setPlaceholderText("Digite sua mensagem aqui...")
         input_layout.addWidget(self.user_input)
 
+        # Botão para enviar a mensagem de texto
         self.send_button = QPushButton("Enviar")
         icon_path = "resources/icons/cil-cursor.png"
         if os.path.exists(icon_path):
             self.send_button.setIcon(QIcon(icon_path))
         input_layout.addWidget(self.send_button)
 
+        # Botão para gravar áudio
+        self.record_button = QPushButton("Gravar Áudio")
+        input_layout.addWidget(self.record_button)
+
         main_layout.addLayout(input_layout)
 
         # Conexões de sinais e slots
         self.send_button.clicked.connect(self.send_message)
         self.user_input.returnPressed.connect(self.send_message)
-        
+        self.record_button.clicked.connect(self.send_audio_message)
+
+    @Slot()
+    def send_audio_message(self):
+        """Grava e envia uma mensagem de áudio do usuário."""
+        audio_filename = "user_audio.wav"
+        record_audio(audio_filename)
+        user_text = transcribe_audio(audio_filename)
+        if user_text:
+            self.add_message("Você", user_text, self.BACKGROUND_USER)
+            self.get_ai_response(user_text)
+        else:
+            self.add_message("Sistema", "Não foi possível transcrever o áudio.", self.BACKGROUND_SYSTEM)
+
     @Slot()
     def send_message(self):
         """Envia a mensagem do usuário e solicita resposta da IA."""
